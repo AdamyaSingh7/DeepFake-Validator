@@ -1,0 +1,46 @@
+body {
+  font-family: 'Poppins', sans-serif;
+  background: linear-gradient(to bottom right, #121212, #1c1c1c, #2a2a2a);
+  background-attachment: fixed;
+  color: white;
+}
+
+h1, h2, h3, h4, h5 {
+  font-weight: 700;
+  color: #0d6efd;
+}
+
+.card {
+  border-radius: 1rem;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+  transition: transform 0.2s, box-shadow 0.2s;
+  background-color: #1e1e1e;
+  color: white;
+}
+.card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+}
+
+.btn {
+  border-radius: 50px;
+  padding: 0.6rem 1.4rem;
+  font-weight: 600;
+  transition: all 0.3s ease;
+}
+.btn:hover {
+  transform: scale(1.05);
+}
+
+.dropzone {
+  border: 2px dashed #0d6efd;
+  background: #1e1e1e;
+  color: white;
+  text-align: center;
+  padding: 2rem;
+  border-radius: 1rem;
+  transition: all 0.3s ease;
+}
+.dropzone:hover {
+  background: #2c2c2c;
+}

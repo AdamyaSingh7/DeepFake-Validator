@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+.env
+output/
+outputs/
+uploads/
+
+# Node
+node_modules/
+dist/
+.env
+.vscode/
+
+# System files
+.DS_Store
+.idea/
