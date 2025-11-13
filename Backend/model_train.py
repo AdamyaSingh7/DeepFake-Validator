@@ -1,6 +1,3 @@
-#!/usr/bin/env python
-
-# ## 1. Imports ##
 import os
 import cv2
 import numpy as np
@@ -23,55 +20,49 @@ import urllib.request
 import sys
 
 
-# --- Path Configuration ---
-DATA_ROOT = "C:\\Users\\adamy\\Downloads\\dataset"  # Path to the dataset
-OUTPUT_DIR = "C:\\Users\\adamy\\PycharmProjects\\PythonProject\\PythonProject\\output"  # Path to save outputs and find the model
-FACE_CACHE_DIR = "C:\\Users\\adamy\\PycharmProjects\\PythonProject\\PythonProject\\face_cache"  # Path to save/load preprocessed faces
-# --- End Path Configuration ---
+
+DATA_ROOT = "C:\\Users\\adamy\\Downloads\\dataset"  
+OUTPUT_DIR = "C:\\Users\\adamy\\PycharmProjects\\PythonProject\\PythonProject\\output"  
+FACE_CACHE_DIR = "C:\\Users\\adamy\\PycharmProjects\\PythonProject\\PythonProject\\face_cache"  
+
 
 REAL_DIR = os.path.join(DATA_ROOT, 'Celeb-real')
 FAKE_DIR = os.path.join(DATA_ROOT, 'Celeb-synthesis')
 OLD_BEST_MODEL_PATH = os.path.join(OUTPUT_DIR, 'old_best_model.pth')
 BEST_MODEL_PATH = os.path.join(OUTPUT_DIR, 'best_model.pth')
 
-# Create necessary directories
+
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 os.makedirs(FACE_CACHE_DIR, exist_ok=True)
 os.makedirs(os.path.join(FACE_CACHE_DIR, 'train'), exist_ok=True)
 os.makedirs(os.path.join(FACE_CACHE_DIR, 'val'), exist_ok=True)
 os.makedirs(os.path.join(FACE_CACHE_DIR, 'test'), exist_ok=True)
 
-# Check CUDA availability
+
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-
-# ## 3. Dataset Catalog Creation ##
-
 def create_dataset_df():
-    """Creates a DataFrame catalog of the real and fake videos."""
     data = []
-
-    # Load real videos
     real_videos = [f for f in os.listdir(REAL_DIR) if f.endswith('.mp4')]
     for video_name in tqdm(real_videos, desc="Processing real videos catalog"):
         video_path = os.path.join(REAL_DIR, video_name)
         data.append({
             'video_path': video_path,
-            'label': 0,  # Real
+            'label': 0,  
             'video_name': video_name
         })
 
-    # Load fake videos
+    
     fake_videos = [f for f in os.listdir(FAKE_DIR) if f.endswith('.mp4')]
     for video_name in tqdm(fake_videos, desc="Processing fake videos catalog"):
         video_path = os.path.join(FAKE_DIR, video_name)
         data.append({
             'video_path': video_path,
-            'label': 1,  # Fake
+            'label': 1,  
             'video_name': video_name
         })
 
-    # Create dataframe and split
+    
     df = pd.DataFrame(data)
     train_df, temp_df = train_test_split(df, test_size=0.3, random_state=42, stratify=df['label'])
     val_df, test_df = train_test_split(temp_df, test_size=0.5, random_state=42, stratify=temp_df['label'])
@@ -90,11 +81,7 @@ def create_dataset_df():
     return train_df, val_df, test_df
 
 
-# ## 4. Face Extraction with OpenCV DNN ##
-
 class FaceExtractor:
-    """Uses OpenCV's DNN face detector with GPU support to extract faces."""
-
     def __init__(self, face_size=224, device=None):
         if device is None:
             device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -241,7 +228,6 @@ class FaceExtractor:
             return None
 
     def process_video_batch(self, video_paths, num_frames=16):
-        """Process multiple videos in parallel for better GPU utilization"""
         results = {}
 
         for path in video_paths:
@@ -254,10 +240,9 @@ class FaceExtractor:
         return results
 
 
-# ## 5. Video Preprocessing Pipeline ##
+
 
 def preprocess_videos(df, split, face_extractor, num_frames=16, device=None):
-    """Extracts and caches faces from videos in the DataFrame."""
     if device is None:
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -309,11 +294,7 @@ def preprocess_videos(df, split, face_extractor, num_frames=16, device=None):
     if device.type == 'cuda':
         torch.cuda.empty_cache()
 
-
-# ## 6. Video Data Augmentation ##
-
 class VideoAugmentation:
-    """Applies augmentations to video frames."""
 
     def __init__(self, is_train=True):
         self.is_train = is_train
@@ -324,8 +305,8 @@ class VideoAugmentation:
 
         if self.is_train:
             if random.random() > 0.5:
-                alpha = random.uniform(0.8, 1.2)  # Contrast
-                beta = random.uniform(-0.2, 0.2)  # Brightness
+                alpha = random.uniform(0.8, 1.2)  
+                beta = random.uniform(-0.2, 0.2)  
                 frames = np.clip(alpha * frames + beta, 0, 1)
             if random.random() > 0.5:
                 frames = frames[:, :, ::-1, :].copy()
@@ -338,10 +319,7 @@ class VideoAugmentation:
         return torch.FloatTensor(frames)
 
 
-# ## 7. PyTorch Dataset for Cached Face Sequences ##
-
 class DeepfakeDataset(Dataset):
-    """Loads preprocessed face sequences from .npy files."""
 
     def __init__(self, df, split, transform=None, num_frames=16):
         self.df = df
@@ -381,16 +359,12 @@ class DeepfakeDataset(Dataset):
             'label': torch.tensor(label, dtype=torch.float32)
         }
 
-
-# ## 8. 3D Temporal Deepfake Detection Model ##
-
 class EnhancedEfficientFace(nn.Module):
-    """The EnhancedEfficientFace model architecture (from notebook)."""
 
     def __init__(self, num_frames=16):
         super(EnhancedEfficientFace, self).__init__()
         
-        # Use pretrained=True as in notebook
+        
         self.backbone = models.efficientnet_b0(pretrained=True) 
         self.backbone.classifier = nn.Identity()
 
@@ -443,10 +417,7 @@ class EnhancedEfficientFace(nn.Module):
         return output
 
 
-# ## 9. Model Training, Validation, and Testing Routines ##
-
 def train_epoch(model, loader, optimizer, criterion, device):
-    """Runs one training epoch."""
     model.train()
     total_loss = 0
     predictions = []
@@ -472,7 +443,6 @@ def train_epoch(model, loader, optimizer, criterion, device):
 
 
 def validate(model, loader, criterion, device):
-    """Runs one validation epoch."""
     model.eval()
     total_loss = 0
     predictions = []
@@ -503,7 +473,6 @@ def validate(model, loader, criterion, device):
 
 
 def test(model, loader, device):
-    """Runs the model on the test set and calculates metrics."""
     model.eval()
     predictions = []
     targets = []
@@ -576,10 +545,7 @@ def test(model, loader, device):
     return results
 
 
-# ## 10. Balanced DataLoader Construction ##
-
 def create_balanced_dataloader(dataset, batch_size=8):
-    """Creates a balanced training data loader using WeightedRandomSampler."""
     labels = [int(dataset.df.iloc[idx]['label']) for idx in range(len(dataset.df))]
     class_counts = np.bincount(labels)
 
@@ -602,10 +568,7 @@ def create_balanced_dataloader(dataset, batch_size=8):
     return loader, class_weights
 
 
-# ## 11. Evaluation Visualization Functions ##
-
 def plot_training_curves(train_losses, train_aucs, val_losses, val_aucs, val_f1s, lrs):
-    """Plots learning curves from training history."""
     plt.figure(figsize=(15, 10))
     plt.subplot(2, 2, 1)
     plt.plot(train_losses, label='Train Loss')
@@ -628,7 +591,6 @@ def plot_training_curves(train_losses, train_aucs, val_losses, val_aucs, val_f1s
 
 
 def plot_learning_curves_from_checkpoint(checkpoint):
-    """Plots learning curves from a saved checkpoint."""
     if 'train_losses' in checkpoint and 'val_losses' in checkpoint and 'train_aucs' in checkpoint and 'val_aucs' in checkpoint:
         epochs = range(1, len(checkpoint['train_losses']) + 1)
         plt.figure(figsize=(20, 8))
@@ -650,7 +612,6 @@ def plot_learning_curves_from_checkpoint(checkpoint):
 
 
 def visualize_sample_predictions(model, test_loader, device, num_samples=8):
-    """Visualize sample predictions from the model."""
     model.eval()
     samples = []
     with torch.no_grad():
@@ -701,7 +662,6 @@ def visualize_sample_predictions(model, test_loader, device, num_samples=8):
 
 
 def plot_confusion_matrix_with_percentages(cm):
-    """Plots the confusion matrix with both counts and percentages."""
     cm_norm_row = cm.astype('float') / (cm.sum(axis=1)[:, np.newaxis] + 1e-6) * 100
     plt.figure(figsize=(10, 8))
     plt.imshow(cm, interpolation='nearest', cmap=plt.cm.Blues)
@@ -723,7 +683,6 @@ def plot_confusion_matrix_with_percentages(cm):
 
 
 def plot_threshold_metrics(model, test_loader, device):
-    """Calculates and plots accuracy, precision, recall, and F1 vs. threshold."""
     model.eval()
     all_predictions = []
     all_labels = []
@@ -779,7 +738,6 @@ def plot_threshold_metrics(model, test_loader, device):
 
 
 def plot_roc_curve(all_labels, all_predictions):
-    """Calculates and plots the ROC curve."""
     if all_labels is None or all_predictions is None:
         print("Skipping ROC curve plot due to missing data.")
         return
@@ -798,11 +756,11 @@ def plot_roc_curve(all_labels, all_predictions):
     plt.close()
 
 
-# ## 12. Main Execution ##
+
 
 if __name__ == "__main__":
 
-    # --- 1. Setup ---
+    
     print(f"Using device: {device}")
     if device.type == 'cuda':
         os.environ['CUDA_VISIBLE_DEVICES'] = '0'
@@ -813,15 +771,15 @@ if __name__ == "__main__":
         print(f"Using GPU: {torch.cuda.get_device_name(0)}")
         print(f"Total GPU memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.2f} GB")
 
-    # --- 2. Create Dataset DataFrame ---
+    
     print("\nCreating dataset catalogs...")
     train_df, val_df, test_df = create_dataset_df()
 
-    # --- 3. Initialize Face Extractor ---
+    
     print("\nInitializing face extractor...")
     face_extractor = FaceExtractor(face_size=224, device=device)
 
-    # --- 4. Preprocess Videos ---
+    
     print("\nPreprocessing training videos...")
     preprocess_videos(train_df, 'train', face_extractor, device=device)
     print("Preprocessing validation videos...")
@@ -829,7 +787,7 @@ if __name__ == "__main__":
     print("Preprocessing test videos...")
     preprocess_videos(test_df, 'test', face_extractor, device=device)
 
-    # --- 5. Verify Preprocessing ---
+    
     print("\nVerifying preprocessing results...")
     for split in ['train', 'val', 'test']:
         cache_dir = os.path.join(FACE_CACHE_DIR, split)
@@ -837,7 +795,7 @@ if __name__ == "__main__":
             processed_files = len([f for f in os.listdir(cache_dir) if f.endswith('.npy')])
             print(f"{split} set: {processed_files} processed face files")
 
-    # --- 6. Create DataLoaders ---
+    
     print("\nCreating DataLoaders...")
     train_transform = VideoAugmentation(is_train=True)
     val_transform = VideoAugmentation(is_train=False)
@@ -853,7 +811,7 @@ if __name__ == "__main__":
 
     class_weights_tensor = torch.FloatTensor(class_weights).to(device)
 
-    # --- 7. Initialize Model & Training Config ---
+    
     print("\nInitializing model...")
     model = EnhancedEfficientFace().to(device)
 
@@ -861,26 +819,26 @@ if __name__ == "__main__":
     optimizer = optim.AdamW(model.parameters(), lr=1e-4, weight_decay=1e-5)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=3)
 
-    num_epochs = 20 # Total epochs to run *to* (not *for*)
+    num_epochs = 20 
     
-    # ** MODIFICATION: Initialize history and trackers *before* loading **
+    
     best_val_auc = 0
     start_epoch = 0
     train_losses, train_aucs = [], []
     val_losses, val_aucs, val_f1s, lrs = [], [], [], []
 
-    # ** MODIFICATION: Check for and load existing checkpoint **
+    
     if os.path.exists(OLD_BEST_MODEL_PATH):
         print(f"Loading checkpoint from {OLD_BEST_MODEL_PATH} to continue training...")
         try:
-            # Set weights_only=False to load optimizer, epoch, etc.
+            
             checkpoint = torch.load(OLD_BEST_MODEL_PATH, map_location=device, weights_only=False) 
             model.load_state_dict(checkpoint['model_state_dict'])
             optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
             start_epoch = checkpoint['epoch'] + 1
             best_val_auc = checkpoint['val_auc']
             
-            # Load training history to continue plots
+            
             train_losses = checkpoint.get('train_losses', [])
             train_aucs = checkpoint.get('train_aucs', [])
             val_losses = checkpoint.get('val_losses', [])
@@ -897,12 +855,12 @@ if __name__ == "__main__":
             val_losses, val_aucs, val_f1s, lrs = [], [], [], []
     else:
         print("No checkpoint found. Starting training from scratch.")
-        # Keep default 0/empty list values
+        
 
 
-    # --- 8. Training Loop ---
+    
     print("Starting training...")
-    # ** MODIFICATION: Start loop from 'start_epoch' **
+    
     for epoch in range(start_epoch, num_epochs):
         print(f"\nEpoch {epoch + 1}/{num_epochs}")
 
@@ -913,7 +871,7 @@ if __name__ == "__main__":
         print(f"Val Loss: {val_metrics['val_loss']:.4f}, Val AUC: {val_metrics['val_auc']:.4f}")
         print(f"Val Accuracy: {val_metrics['val_accuracy']:.4f}, Val F1: {val_metrics['val_f1']:.4f}")
 
-        # Track metrics
+        
         train_losses.append(train_loss)
         train_aucs.append(train_auc)
         val_losses.append(val_metrics['val_loss'])
@@ -921,17 +879,17 @@ if __name__ == "__main__":
         val_f1s.append(val_metrics['val_f1'])
         lrs.append(optimizer.param_groups[0]['lr'])
 
-        # Plot curves
+        
         plot_training_curves(train_losses, train_aucs, val_losses, val_aucs, val_f1s, lrs)
 
-        # LR scheduling
+        
         scheduler.step(val_metrics['val_loss'])
 
-        # Save best model
+        
         if val_metrics['val_auc'] > best_val_auc:
             best_val_auc = val_metrics['val_auc']
             torch.save({
-                'epoch': epoch, # Save the *completed* epoch index
+                'epoch': epoch, 
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
                 'val_auc': val_metrics['val_auc'],
@@ -945,9 +903,9 @@ if __name__ == "__main__":
             }, BEST_MODEL_PATH)
             print(f"New best model saved with AUC: {best_val_auc:.4f}")
 
-    # --- 9. Final Evaluation ---
+    
     print("\nLoading best model for final evaluation...")
-    # This section remains the same, it loads the *best* model saved *during the loop*
+    
     try:
         model = EnhancedEfficientFace().to(device)
         checkpoint = torch.load(BEST_MODEL_PATH, map_location=device, weights_only=False)
@@ -955,35 +913,35 @@ if __name__ == "__main__":
         model.eval()
         print("Best model loaded successfully.")
 
-        # Plot learning curves from the final saved checkpoint
+        
         plot_learning_curves_from_checkpoint(checkpoint)
 
-        # Run test evaluation
+        
         print("\nRunning final test evaluation on test set...")
         test_results = test(model, test_loader, device)
 
-        # Export test results
+        
         results_df = pd.DataFrame([test_results])
         results_df.to_csv(os.path.join(OUTPUT_DIR, 'test_results.csv'), index=False)
 
-        # Visualize sample predictions
+        
         try:
             visualize_sample_predictions(model, test_loader, device, num_samples=8)
         except Exception as e:
             print(f"Error in sample visualization: {e}")
 
-        # Plot threshold metrics
+        
         optimal_threshold, all_labels, all_predictions = plot_threshold_metrics(model, test_loader, device)
         print(f"Optimal threshold for F1 score: {optimal_threshold:.4f}")
 
-        # Plot Confusion Matrix with Percentages
+        
         cm = np.array(test_results['confusion_matrix'])
         plot_confusion_matrix_with_percentages(cm)
 
-        # Plot final ROC curve
+        
         plot_roc_curve(all_labels, all_predictions)
 
-        # Print final results summary
+        
         print("\nFinal Test Results:")
         print(f"AUC: {test_results['test_auc']:.4f}")
         print(f"EER: {test_results['test_eer']:.4f}")
