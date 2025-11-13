@@ -22,6 +22,7 @@ export default function App() {
     }
     const url = URL.createObjectURL(file)
     setPreviewUrl(url)
+    console.log(previewUrl)
     setFileType(file.type || '') // store the MIME type (e.g. "video/mp4", "image/png")
     return () => {
       URL.revokeObjectURL(url)
